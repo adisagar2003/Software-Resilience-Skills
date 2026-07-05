@@ -1,7 +1,29 @@
 # RESILIENCE.md output skeleton
 
-Instantiate every {placeholder}. Keep section order. Wrap nothing else in
-sentinels — only user-added regions use them.
+Findings follow the candid-review output structure: severity icon + title,
+then File / Confidence / Problem / Impact / Fix blocks. Instantiate every
+{placeholder}. Keep section order. Wrap nothing else in sentinels — only
+user-added regions use them.
+
+## Severity categories (candid-compatible)
+
+| Priority | Category | Icon | In this skill means |
+|----------|----------|------|---------------------|
+| 1 | Critical | 🔥 | A 4R gap that loses data or lets an attacker in (missing backups, forgeable sessions) |
+| 2 | Major | ⚠️ | A gap that extends an outage or blinds you to one (no health check, no alerts) |
+| 3 | Edge Case | 🤔 | Failure scenario unhandled (provider outage, deploy-time breakage) |
+| 4 | Architectural | 💭 | Structural resilience concern (single provider, no degraded mode) |
+| 5 | Clarification Needed | ? | Cannot verify from the repo (backup retention, platform rate limits) — never assert safety |
+
+## Fix confidence levels
+
+| Level | Icon | When |
+|-------|------|------|
+| Safe | ✓ | Mechanical, no behavior change (add logging, gitignore, remove fallback secret) |
+| Verify | ⚡ | Logic/config change, needs testing (rate limit, health check, migration flow) |
+| Careful | ⚠️ | Operational/architectural change with side effects (restore drills, failover, key rotation) |
+
+## Skeleton
 
     # RESILIENCE.md — {project name}
 
@@ -12,16 +34,30 @@ sentinels — only user-added regions use them.
     ## 1. Asset classification
     {table: Asset | Where (file/path) | Rank | Why}
 
-    ## 2. Threats and the 4R plan
-    {per critical asset: table Threat (CIA) | Recognition | Resistance | Recovery | Reinstatement}
+    ## 2. Findings
 
-    ## 3. Open questions
-    {bullets: things the audit could not verify — never assert unverified safety}
+    {summary line: N critical, N major, N edge case, N architectural, N clarification}
 
-    ## 4. Prioritized actions
-    {numbered list, most critical Recovery/Recognition gaps first}
+    {per finding, ordered by severity:}
 
-    ## 5. Runbooks
+    ### {icon} {Title}
+    **Asset:** {asset} · **R:** {Recognition|Resistance|Recovery|Reinstatement}
+    **File:** {path:line, or "not present in repo" for missing capabilities}
+    **Confidence:** {Safe ✓ | Verify ⚡ | Careful ⚠️}
+    **Problem:** {what's missing or wrong, tied to real files}
+    **Impact:** {what happens in an incident because of this gap}
+    **Fix:**
+    ```{language or text}
+    {concrete code, config, or numbered operational steps}
+    ```
+
+    {Clarification Needed (?) findings replace Fix with:}
+    **Question:** {what only the author/production can answer}
+
+    ## 3. Existing resistance (credit what's already there)
+    {bullets: controls found in the code, with file:line}
+
+    ## 4. Runbooks
 
     ### Backup & restore
     {numbered steps specific to the detected database/storage; must end with

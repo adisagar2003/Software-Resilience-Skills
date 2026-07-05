@@ -32,34 +32,38 @@ asset, list threats by CIA category: Confidentiality (exposed), Integrity
 apply to THIS repo — tie each one to a real file, dependency, or config
 you found.
 
-## Stage 3 — 4R plan
+## Stage 3 — 4R findings
 
-For each asset/threat pair fill all four Rs:
+For each asset/threat pair, evaluate all four Rs and emit one **finding
+per gap**, in the candid-review format defined in
+`references/runbook-templates.md`: severity icon + title, then
+**Asset/R**, **File**, **Confidence** (Safe ✓ | Verify ⚡ | Careful ⚠️),
+**Problem**, **Impact**, **Fix** with concrete code/config/steps.
 
-- **Recognition** — how the developer would detect it early (logs, alerts, monitors). Note existing recognition measures you found in the code.
-- **Resistance** — controls reducing failure probability (auth, rate limits, isolation). Credit what already exists, with file:line.
-- **Recovery** — how critical service is restored quickly (backups, failover, degraded mode).
-- **Reinstatement** — how full normal operation resumes (restore procedure, data validation, post-incident review).
-
-Where you cannot verify something (e.g., whether a webhook checks
-signatures), record it as an **open question** in the plan — do not assert
-safety you haven't confirmed.
+- **Recognition** gaps (no alerts, monitors, logging) are usually ⚠️ Major.
+- **Resistance** gaps that admit attackers or lose data are 🔥 Critical.
+- **Recovery/Reinstatement** gaps: missing/unrehearsed backups are 🔥; missing degraded modes are 💭.
+- Controls that already exist go in "Existing resistance" with file:line — credit them, don't re-report them.
+- Anything you cannot verify from the repo (backup retention, platform
+  rate limits, webhook signatures) becomes a **? Clarification Needed**
+  finding with a **Question** instead of a Fix — never assert safety you
+  haven't confirmed.
 
 ## Stage 4 — Output
 
-1. Write `RESILIENCE.md` at the target repo root using the structure in
-   `references/runbook-templates.md`: header note, asset table, 4R
-   matrices, prioritized actions (most critical Recovery/Recognition gaps
-   first), runbooks, and the citation footer.
+1. Write `RESILIENCE.md` at the target repo root using the skeleton in
+   `references/runbook-templates.md`: header note, asset table, findings
+   ordered by severity with a summary count line, existing-resistance
+   credits, runbooks, and the citation footer.
    - If `RESILIENCE.md` already exists: regenerate sections but preserve
      any region wrapped in `<!-- resilience:manual -->` ...
      `<!-- /resilience:manual -->` comments verbatim.
 2. If `gh auth status` succeeds AND `git remote get-url origin` is a
-   GitHub URL: create one issue per prioritized action
-   (`gh issue create --title "<action>" --label resilience --body "<4R context>"`).
+   GitHub URL: create one issue per 🔥 Critical and ⚠️ Major finding
+   (`gh issue create --title "<finding title>" --label resilience --body "<the full finding block>"`).
    On ANY failure, skip silently and add a footer line noting issues were
    not created.
-3. End by telling the user: the top 3 actions, and that runbooks must be
+3. End by telling the user: the finding-count summary, the top 3 findings, and that runbooks must be
    rehearsed by a human before they count as Recovery.
 
 ## Failure mode to avoid

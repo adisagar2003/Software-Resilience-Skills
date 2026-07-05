@@ -15,34 +15,97 @@
 | Deploy pipeline | `package.json` `deploy` script (`prisma migrate deploy && vercel`) | Important | Unreviewed migration can corrupt prod data on every deploy |
 | Built assets | `tsc` output | Normal | Rebuildable from source |
 
-## 2. Threats and the 4R plan
+## 2. Findings
 
-### User data (User + Note tables)
+2 critical, 2 major, 1 edge case, 2 clarification needed.
 
-| Threat (CIA) | Recognition | Resistance | Recovery | Reinstatement |
-|---|---|---|---|---|
-| Data loss via `prisma migrate deploy` in the deploy script (I/A) | Post-deploy health check counting `User`/`Note` rows — none exists today | Review migrations before deploy; keep them additive | Provider point-in-time restore — retention unverified, see open questions | Re-run corrected migration; compare row counts to pre-incident |
-| Credential stuffing against login (C) | Failed-login spike alerts — no logging found in `src/auth.ts` | bcrypt hashing present (`src/auth.ts`); no rate limiting found on the login path | Rotate `JWT_SECRET` (kills all sessions), force password resets | Notify affected users; audit notes for tampering |
+### 🔥 Weak JWT fallback secret ships to production
+**Asset:** `JWT_SECRET` · **R:** Resistance
+**File:** `src/auth.ts:3`
+**Confidence:** Safe ✓
+**Problem:** `const SECRET = process.env.JWT_SECRET || 'dev-secret'` — if the env var is ever unset in production, every session is signed with a publicly guessable string.
+**Impact:** An attacker who guesses the fallback can mint a valid session for any user (Confidentiality + Integrity).
+**Fix:**
+```typescript
+const SECRET = process.env.JWT_SECRET;
+if (!SECRET) throw new Error('JWT_SECRET is required');
+```
 
-### JWT_SECRET
+### 🔥 No backup or restore path for user data
+**Asset:** User notes, user accounts · **R:** Recovery
+**File:** not present in repo (no backup config found anywhere)
+**Confidence:** Careful ⚠️
+**Problem:** The `User` and `Note` tables in `prisma/schema.prisma` are the whole product, and nothing in the repo backs them up or documents a restore.
+**Impact:** A bad migration or provider incident is permanent data loss.
+**Fix:**
+```text
+1. Confirm the database provider's point-in-time-restore retention.
+2. Rehearse one restore into a scratch branch (see runbook below).
+3. Add the drill to a recurring calendar. Until rehearsed, you have hope, not Recovery.
+```
 
-| Threat (CIA) | Recognition | Resistance | Recovery | Reinstatement |
-|---|---|---|---|---|
-| Weak fallback secret in production (C/I) — `src/auth.ts` falls back to `'dev-secret'` when `JWT_SECRET` is unset | Hard to detect after the fact; check env config at boot instead | **Gap:** replace the fallback with a hard failure in production | Set a real secret and redeploy — all forged sessions die | Users re-log-in; verify no data changed while exposed |
+### ⚠️ No post-deploy health check despite migrate-on-deploy
+**Asset:** Deploy pipeline · **R:** Recognition
+**File:** `package.json` (`"deploy": "prisma migrate deploy && vercel"`)
+**Confidence:** Verify ⚡
+**Problem:** Every deploy runs a migration, but nothing verifies the database survived it.
+**Impact:** A destructive migration is discovered by users, not by you.
+**Fix:**
+```typescript
+// api/health.ts — call after each deploy, alert on failure
+const users = await prisma.user.count();
+const notes = await prisma.note.count();
+res.json({ ok: users >= 0 && notes >= 0, users, notes });
+```
 
-## 3. Open questions
+### ⚠️ No failed-login visibility
+**Asset:** User accounts · **R:** Recognition
+**File:** `src/auth.ts:5-8`
+**Confidence:** Safe ✓
+**Problem:** `login()` throws on bad credentials but logs nothing, so credential stuffing is invisible.
+**Impact:** You learn about a brute-force campaign only after accounts are compromised.
+**Fix:**
+```typescript
+if (!(await bcrypt.compare(password, hash))) {
+  console.warn('auth.failed_login', { email });
+  throw new Error('bad credentials');
+}
+```
 
-- What is the database provider's point-in-time-restore retention, and has a restore ever been tested? The repo contains no backup configuration.
-- Is rate limiting applied anywhere in front of the login endpoint (e.g., at the platform layer)? None is visible in the codebase.
+### 🤔 Deploy couples migration and release into one failure domain
+**Asset:** Deploy pipeline · **R:** Recovery
+**File:** `package.json` (`deploy` script)
+**Confidence:** Verify ⚡
+**Problem:** `prisma migrate deploy && vercel` means a half-failed deploy can leave schema and code out of sync.
+**Impact:** Rollback of the app doesn't roll back the schema; recovery becomes manual archaeology.
+**Fix:**
+```text
+Take a restore point before deploying, keep migrations additive,
+and document the "migration succeeded but deploy failed" path in the
+incident runbook.
+```
 
-## 4. Prioritized actions
+### ? Is rate limiting applied in front of the login path?
+**Asset:** User accounts · **R:** Resistance
+**File:** not verifiable from repo
+**Confidence:** —
+**Problem:** No rate limiting is visible in the codebase; it may exist at the platform layer.
+**Question:** Does the hosting platform (Vercel per `vercel.json`) enforce request limits on `/api/*`, or does the login endpoint accept unlimited attempts?
 
-1. Remove the `'dev-secret'` fallback in `src/auth.ts` — throw if `JWT_SECRET` is unset in production.
-2. Confirm database backup retention and rehearse one restore into a scratch environment. Until then you have hope, not Recovery.
-3. Add a post-deploy health check that counts `User` and `Note` rows, since `prisma migrate deploy` runs on every deploy.
-4. Add failed-login logging and rate limiting on the login path.
+### ? What is the database backup retention?
+**Asset:** User notes, user accounts · **R:** Recovery
+**File:** not verifiable from repo
+**Confidence:** —
+**Problem:** Restore capability depends entirely on provider settings that live outside the codebase.
+**Question:** Which provider hosts `DATABASE_URL`, what is its point-in-time-restore window, and has a restore ever been tested?
 
-## 5. Runbooks
+## 3. Existing resistance (credit what's already there)
+
+- Password hashing with bcrypt before comparison — `src/auth.ts:6`
+- Secrets kept out of the repo; `.env.example` documents names only
+- JWT expiry limited to 7 days — `src/auth.ts:7`
+
+## 4. Runbooks
 
 ### Backup & restore
 1. In the database provider's console, restore to a timestamp before the incident, into a **new** branch/instance — never overwrite production.
