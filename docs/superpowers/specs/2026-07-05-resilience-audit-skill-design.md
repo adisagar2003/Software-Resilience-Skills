@@ -63,6 +63,12 @@ SoftwareResilienceSkills/
 - Run the skill against 2–3 sample repos (a Node/Next.js app, a Python API, an empty repo) and check: assets correctly classified, no generic boilerplate untied to real files, all four Rs populated per critical asset, graceful `gh` fallback.
 - The `examples/RESILIENCE.example.md` is produced by an actual run, not hand-written.
 
+## References
+
+- Sommerville, I. (2016). *Software Engineering* (10th ed.). Pearson. Chapter 14, "Resilience Engineering" — source of the 4R model (Recognition, Resistance, Recovery, Reinstatement) and the cyber-resilience planning process this skill follows.
+
+This citation must also appear in the published repo's README.md and in the footer of every generated RESILIENCE.md.
+
 ## Open design constraints (from critique, kept deliberate)
 
 - Output must reference actual files/paths in the target repo; a plan that could apply to any repo is a failed run.
