@@ -45,6 +45,8 @@ Top prioritized action from that run: *"Rehearse a restore once. Until then you 
 
 You get a `RESILIENCE.md` at your repo root. If the `gh` CLI is authenticated and your repo is on GitHub, each prioritized action also becomes a GitHub issue; otherwise the file alone.
 
+See [a sample RESILIENCE.md](examples-public/RESILIENCE.example.md) generated from a small Express + Prisma app.
+
 Re-running the skill regenerates the plan but preserves anything you wrote between `<!-- resilience:manual -->` and `<!-- /resilience:manual -->` markers.
 
 ## What this is NOT
